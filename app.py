@@ -1,113 +1,95 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from io import BytesIO
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Business Strategy Simulator", layout="centered")
+# -------------------------
+# PAGE CONFIG
+# -------------------------
+st.set_page_config(
+    page_title="Strategy Simulator",
+    page_icon="📊",
+    layout="wide"
+)
 
-# --- INTRO PAGE ---
+# -------------------------
+# HELPER FUNCTIONS
+# -------------------------
+@st.cache_data
+def run_simulation(strategy_factor, market_volatility, iterations=100):
+    """Simulate strategy performance with randomness."""
+    results = []
+    for _ in range(iterations):
+        actual_factor = strategy_factor * (0.9 + 0.2 * np.random.rand())
+        volatility_effect = (1 - market_volatility * np.random.rand())
+        results.append(actual_factor * volatility_effect * 100)
+    return results
+
+def generate_summary(results):
+    """Generate a dataframe summary."""
+    df = pd.DataFrame(results, columns=["Performance"])
+    return df.describe()
+
+def convert_df(df):
+    """Convert DataFrame to CSV for download."""
+    return df.to_csv(index=False).encode("utf-8")
+
+# -------------------------
+# SIDEBAR (Inputs)
+# -------------------------
+st.sidebar.title("⚙️ Simulation Settings")
+strategy_factor = st.sidebar.slider("Strategy Effectiveness", 0.5, 2.0, 1.0, 0.1)
+market_volatility = st.sidebar.slider("Market Volatility", 0.0, 1.0, 0.3, 0.05)
+iterations = st.sidebar.number_input("Iterations", min_value=50, max_value=1000, value=200, step=50)
+
+# -------------------------
+# MAIN PAGE
+# -------------------------
 st.title("📊 Business Strategy Simulator")
-st.markdown("Welcome to the **Business Strategy Simulator**. "
-            "Use this tool to plan strategies, simulate decisions, and download insights.")
+st.markdown(
+    """
+    Welcome to the **Strategy Simulator**.  
+    Use the sidebar to adjust **strategy effectiveness, market volatility, and iterations**.  
+    The simulator will run scenarios and provide a **summary, visualization, and downloadable report**.
+    """
+)
 
-# --- NAVIGATION ---
-pages = ["📋 Inputs", "📈 Simulation", "📑 Summary & Download"]
-choice = st.sidebar.radio("Navigate", pages)
+try:
+    # Run simulation
+    results = run_simulation(strategy_factor, market_volatility, iterations)
+    summary_df = generate_summary(results)
 
-# --- PAGE 1: INPUTS ---
-if choice == "📋 Inputs":
-    st.header("Step 1: Define Your Business Inputs")
-    st.markdown("Fill in the parameters below to set up your strategy simulation.")
+    # Show summary
+    st.subheader("📈 Simulation Results Summary")
+    st.dataframe(summary_df.style.highlight_max(axis=0))
 
-    market_size = st.number_input("Market Size (in $M)", min_value=10, max_value=10000, value=500)
-    growth_rate = st.slider("Expected Annual Growth Rate (%)", 0, 50, 10)
-    competition = st.selectbox("Competition Level", ["Low", "Medium", "High"])
-    budget = st.number_input("Available Budget (in $M)", min_value=1, max_value=5000, value=100)
+    # Plot results
+    st.subheader("📉 Performance Distribution")
+    fig, ax = plt.subplots()
+    ax.hist(results, bins=20, color="skyblue", edgecolor="black")
+    ax.set_title("Strategy Performance Distribution")
+    ax.set_xlabel("Performance")
+    ax.set_ylabel("Frequency")
+    st.pyplot(fig)
 
-    st.session_state["inputs"] = {
-        "Market Size": market_size,
-        "Growth Rate": growth_rate,
-        "Competition": competition,
-        "Budget": budget
-    }
+    # Download section
+    st.subheader("⬇️ Download Data")
+    csv = convert_df(pd.DataFrame(results, columns=["Performance"]))
+    st.download_button(
+        "Download Results as CSV",
+        data=csv,
+        file_name="strategy_results.csv",
+        mime="text/csv"
+    )
 
-    st.success("✅ Inputs saved! Continue to the Simulation page.")
+    # Footer
+    st.markdown("---")
+    st.markdown(
+        "<p style='text-align: center; color: gray;'>© 2025 Strategy Simulator | Built for Business Insights</p>",
+        unsafe_allow_html=True
+    )
 
-# --- PAGE 2: SIMULATION ---
-elif choice == "📈 Simulation":
-    st.header("Step 2: Run Simulation")
-    if "inputs" not in st.session_state:
-        st.warning("⚠️ Please fill inputs first.")
-    else:
-        inputs = st.session_state["inputs"]
+except Exception as e:
+    st.error(f"❌ An error occurred during the simulation: {e}")
 
-        # Simple scoring logic
-        base_score = inputs["Market Size"] * (inputs["Growth Rate"] / 100)
-        if inputs["Competition"] == "High":
-            base_score *= 0.6
-        elif inputs["Competition"] == "Medium":
-            base_score *= 0.8
-        else:
-            base_score *= 1.1
-
-        budget_effect = np.log1p(inputs["Budget"])
-        success_score = round(base_score * budget_effect, 2)
-
-        st.metric("📊 Predicted Success Potential", f"${success_score}M")
-
-        st.session_state["simulation_result"] = {
-            "Success Score": success_score
-        }
-
-        st.success("✅ Simulation complete! Go to the Summary page.")
-
-# --- PAGE 3: SUMMARY ---
-elif choice == "📑 Summary & Download":
-    st.header("Step 3: Strategy Summary")
-
-    if "inputs" not in st.session_state or "simulation_result" not in st.session_state:
-        st.warning("⚠️ Please complete the inputs and simulation first.")
-    else:
-        inputs = st.session_state["inputs"]
-        results = st.session_state["simulation_result"]
-
-        st.subheader("📋 Your Inputs")
-        st.write(inputs)
-
-        st.subheader("📊 Simulation Result")
-        st.write(results)
-
-        # PDF Export
-        def generate_pdf(inputs, results):
-            buffer = BytesIO()
-            doc = SimpleDocTemplate(buffer)
-            styles = getSampleStyleSheet()
-            story = []
-
-            story.append(Paragraph("Business Strategy Simulator - Report", styles["Title"]))
-            story.append(Spacer(1, 12))
-
-            story.append(Paragraph("Inputs:", styles["Heading2"]))
-            for key, val in inputs.items():
-                story.append(Paragraph(f"{key}: {val}", styles["Normal"]))
-
-            story.append(Spacer(1, 12))
-            story.append(Paragraph("Results:", styles["Heading2"]))
-            for key, val in results.items():
-                story.append(Paragraph(f"{key}: {val}", styles["Normal"]))
-
-            doc.build(story)
-            buffer.seek(0)
-            return buffer
-
-        pdf_buffer = generate_pdf(inputs, results)
-
-        st.download_button(
-            label="📥 Download Strategy Report (PDF)",
-            data=pdf_buffer,
-            file_name="strategy_report.pdf",
-            mime="application/pdf"
-        )
