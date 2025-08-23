@@ -1,95 +1,139 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from io import BytesIO
 
-# -------------------------
-# PAGE CONFIG
-# -------------------------
-st.set_page_config(
-    page_title="Strategy Simulator",
-    page_icon="📊",
-    layout="wide"
+# --------------------------
+# PAGE CONFIGURATION
+# --------------------------
+st.set_page_config(page_title="Strategy Simulator", page_icon="📊", layout="wide")
+
+# --------------------------
+# SIDEBAR NAVIGATION
+# --------------------------
+st.sidebar.title("📌 Navigation")
+page = st.sidebar.radio(
+    "Go to",
+    ["Introduction", "Strategy Builder", "Risk Analysis", "Market Scenarios", "Summary & Download"]
 )
 
-# -------------------------
-# HELPER FUNCTIONS
-# -------------------------
-@st.cache_data
-def run_simulation(strategy_factor, market_volatility, iterations=100):
-    """Simulate strategy performance with randomness."""
-    results = []
-    for _ in range(iterations):
-        actual_factor = strategy_factor * (0.9 + 0.2 * np.random.rand())
-        volatility_effect = (1 - market_volatility * np.random.rand())
-        results.append(actual_factor * volatility_effect * 100)
-    return results
+# --------------------------
+# INTRO PAGE
+# --------------------------
+if page == "Introduction":
+    st.title("📊 Strategy Simulator")
+    st.write("""
+    Welcome to the **Strategy Simulator**!  
+    This tool helps you design, test, and analyze strategies for **business, personal projects, or investments**.  
 
-def generate_summary(results):
-    """Generate a dataframe summary."""
-    df = pd.DataFrame(results, columns=["Performance"])
-    return df.describe()
+    ✅ Build strategies step by step  
+    ✅ Analyze risks and predictions  
+    ✅ Simulate real-world scenarios  
+    ✅ Export your results for later use  
 
-def convert_df(df):
-    """Convert DataFrame to CSV for download."""
-    return df.to_csv(index=False).encode("utf-8")
+    Use the left-hand sidebar to navigate between sections.
+    """)
 
-# -------------------------
-# SIDEBAR (Inputs)
-# -------------------------
-st.sidebar.title("⚙️ Simulation Settings")
-strategy_factor = st.sidebar.slider("Strategy Effectiveness", 0.5, 2.0, 1.0, 0.1)
-market_volatility = st.sidebar.slider("Market Volatility", 0.0, 1.0, 0.3, 0.05)
-iterations = st.sidebar.number_input("Iterations", min_value=50, max_value=1000, value=200, step=50)
+# --------------------------
+# STRATEGY BUILDER PAGE
+# --------------------------
+elif page == "Strategy Builder":
+    st.title("📝 Strategy Builder")
+    st.write("Define the core elements of your strategy below:")
 
-# -------------------------
-# MAIN PAGE
-# -------------------------
-st.title("📊 Business Strategy Simulator")
-st.markdown(
-    """
-    Welcome to the **Strategy Simulator**.  
-    Use the sidebar to adjust **strategy effectiveness, market volatility, and iterations**.  
-    The simulator will run scenarios and provide a **summary, visualization, and downloadable report**.
-    """
-)
+    with st.form("strategy_form"):
+        goal = st.text_input("🎯 Goal", "Increase revenue / Improve efficiency / Expand reach")
+        timeline = st.selectbox("⏳ Timeline", ["1 Month", "3 Months", "6 Months", "1 Year", "3+ Years"])
+        budget = st.number_input("💰 Budget (in USD)", min_value=0, value=1000, step=100)
+        resources = st.text_area("🛠️ Resources Needed", "Team, tools, marketing, etc.")
+        submit = st.form_submit_button("Save Strategy")
 
-try:
-    # Run simulation
-    results = run_simulation(strategy_factor, market_volatility, iterations)
-    summary_df = generate_summary(results)
+    if submit:
+        st.success("✅ Strategy saved successfully!")
+        st.session_state["strategy"] = {
+            "Goal": goal,
+            "Timeline": timeline,
+            "Budget": budget,
+            "Resources": resources
+        }
 
-    # Show summary
-    st.subheader("📈 Simulation Results Summary")
-    st.dataframe(summary_df.style.highlight_max(axis=0))
+# --------------------------
+# RISK ANALYSIS PAGE
+# --------------------------
+elif page == "Risk Analysis":
+    st.title("⚠️ Risk Analysis")
+    st.write("Evaluate risks and potential challenges.")
 
-    # Plot results
-    st.subheader("📉 Performance Distribution")
-    fig, ax = plt.subplots()
-    ax.hist(results, bins=20, color="skyblue", edgecolor="black")
-    ax.set_title("Strategy Performance Distribution")
-    ax.set_xlabel("Performance")
-    ax.set_ylabel("Frequency")
-    st.pyplot(fig)
+    market_risk = st.slider("📉 Market Risk", 0, 100, 30)
+    financial_risk = st.slider("💵 Financial Risk", 0, 100, 40)
+    execution_risk = st.slider("⚙️ Execution Risk", 0, 100, 20)
 
-    # Download section
-    st.subheader("⬇️ Download Data")
-    csv = convert_df(pd.DataFrame(results, columns=["Performance"]))
-    st.download_button(
-        "Download Results as CSV",
-        data=csv,
-        file_name="strategy_results.csv",
-        mime="text/csv"
-    )
+    total_risk = (market_risk + financial_risk + execution_risk) / 3
+    st.metric("Overall Risk Level", f"{total_risk:.1f}%")
 
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "<p style='text-align: center; color: gray;'>© 2025 Strategy Simulator | Built for Business Insights</p>",
-        unsafe_allow_html=True
-    )
+    st.session_state["risks"] = {
+        "Market Risk": market_risk,
+        "Financial Risk": financial_risk,
+        "Execution Risk": execution_risk,
+        "Total Risk": total_risk
+    }
 
-except Exception as e:
-    st.error(f"❌ An error occurred during the simulation: {e}")
+# --------------------------
+# MARKET SCENARIOS PAGE
+# --------------------------
+elif page == "Market Scenarios":
+    st.title("🌍 Market Scenarios")
+    st.write("Simulate how your strategy performs under different conditions.")
+
+    scenario = st.selectbox("Choose a scenario", ["Optimistic", "Neutral", "Pessimistic"])
+    impact = {"Optimistic": 1.2, "Neutral": 1.0, "Pessimistic": 0.7}[scenario]
+
+    if "strategy" in st.session_state:
+        budget = st.session_state["strategy"]["Budget"]
+        adjusted_budget = budget * impact
+        st.metric("Adjusted Budget", f"${adjusted_budget:,.2f}")
+
+        st.session_state["scenario"] = {
+            "Scenario": scenario,
+            "Impact Factor": impact,
+            "Adjusted Budget": adjusted_budget
+        }
+    else:
+        st.warning("⚠️ Please set up a strategy first in the Strategy Builder.")
+
+# --------------------------
+# SUMMARY & DOWNLOAD PAGE
+# --------------------------
+elif page == "Summary & Download":
+    st.title("📑 Strategy Summary & Download")
+
+    if "strategy" in st.session_state and "risks" in st.session_state and "scenario" in st.session_state:
+        strategy_df = pd.DataFrame([st.session_state["strategy"]])
+        risks_df = pd.DataFrame([st.session_state["risks"]])
+        scenario_df = pd.DataFrame([st.session_state["scenario"]])
+
+        st.subheader("🎯 Strategy")
+        st.table(strategy_df)
+
+        st.subheader("⚠️ Risks")
+        st.table(risks_df)
+
+        st.subheader("🌍 Scenario")
+        st.table(scenario_df)
+
+        # Combine into one Excel file
+        output = pd.ExcelWriter("strategy_summary.xlsx", engine="xlsxwriter")
+        strategy_df.to_excel(output, sheet_name="Strategy", index=False)
+        risks_df.to_excel(output, sheet_name="Risks", index=False)
+        scenario_df.to_excel(output, sheet_name="Scenario", index=False)
+        output.close()
+
+        with open("strategy_summary.xlsx", "rb") as file:
+            st.download_button(
+                label="⬇️ Download Summary (Excel)",
+                data=file,
+                file_name="strategy_summary.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+    else:
+        st.warning("⚠️ Please complete all sections before viewing the summary.")
 
